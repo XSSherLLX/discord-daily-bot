@@ -3,6 +3,7 @@ import { settings, forumPosts } from "@/db/schema";
 import { createForumPost } from "@/lib/discord";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
 // Функция для форматирования даты в формате дд.мм.гггг
 function formatDate(date: string | Date): string {
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
     const discordPostId = await createForumPost(config.discordToken, config.forumChannelId, title, content);
 
     await db.insert(forumPosts).values({
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       postDate: postDate,
       discordPostId: discordPostId,
     });
@@ -74,7 +75,11 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, discordPostId, displayDate });
   } catch (error: any) {
     console.error("Error creating forum post:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      error: "Ошибка при создании публикации", 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }, { status: 500 });
   }
 }
 
@@ -104,7 +109,7 @@ export async function POST(request: Request) {
     const discordPostId = await createForumPost(config.discordToken, config.forumChannelId, title, content);
 
     await db.insert(forumPosts).values({
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       postDate: dbDate,
       discordPostId: discordPostId,
     });

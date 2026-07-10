@@ -16,6 +16,7 @@ export const pool =
   new Pool({
     connectionString: databaseUrl,
     ssl: databaseUrl.includes("supabase.co") ? { rejectUnauthorized: false } : false,
+    connectionTimeoutMillis: 5000,
   });
 
 if (process.env.NODE_ENV !== "production") {
