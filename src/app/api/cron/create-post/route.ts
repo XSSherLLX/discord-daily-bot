@@ -37,7 +37,10 @@ export async function GET(request: Request) {
     const config = configResult[0];
 
     if (!config || !config.discordToken || !config.forumChannelId) {
-      return NextResponse.json({ error: "Discord settings not configured" }, { status: 400 });
+      return NextResponse.json({ 
+        error: "Настройки не найдены", 
+        detail: "Пожалуйста, зайдите в панель управления ботом и сохраните Token и Channel ID заново." 
+      }, { status: 400 });
     }
 
     // Используем ручную дату или сегодняшнюю
@@ -77,8 +80,7 @@ export async function GET(request: Request) {
     console.error("Error creating forum post:", error);
     return NextResponse.json({ 
       error: "Ошибка при создании публикации", 
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     }, { status: 500 });
   }
 }
@@ -93,7 +95,10 @@ export async function POST(request: Request) {
     const config = configResult[0];
 
     if (!config || !config.discordToken || !config.forumChannelId) {
-      return NextResponse.json({ error: "Discord settings not configured" }, { status: 400 });
+      return NextResponse.json({ 
+        error: "Настройки не найдены", 
+        detail: "Зайдите в панель управления и сохраните настройки заново." 
+      }, { status: 400 });
     }
 
     // Формат даты: дд.мм.гггг

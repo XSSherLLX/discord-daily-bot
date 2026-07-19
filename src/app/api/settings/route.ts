@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { settings, configHistory } from "@/db/schema";
 import { NextResponse } from "next/server";
 import { eq, desc } from "drizzle-orm";
-import { getBotName } from "@/lib/discord";
+import { getBotName, getChannelInfo } from "@/lib/discord";
 
 function sendJsonResponse(data: unknown, status = 200) {
   return new NextResponse(JSON.stringify(data), { 
@@ -32,17 +32,30 @@ export async function POST(request: Request) {
        return sendJsonResponse({ error: "Необходимы токен и ID канала" }, 400);
     }
 
-    // Проверяем токен перед сохранением
+    // Проверяем токен и канал перед сохранением
     let botName: string | null = null;
     try {
       botName = await getBotName(discordToken);
     } catch (e) {
-      // токен проверяем позже, просто запоминаем
+      return sendJsonResponse({ error: "Неверный токен бота" }, 400);
     }
     
-    if (!botName) {
-      // Попробуем создать запись без проверки - возможно токен валиден, а Discord не ответил
-      botName = "Unknown Bot";
+    const channelInfo = await getChannelInfo(discordToken, forumChannelId);
+    if (!channelInfo) {
+      return sendJsonResponse({ error: `Канал ${forumChannelId} не найден. Убедитесь, что бот добавлен на сервер.` }, 400);
+    }
+
+    // Тип 15 - это Forum Channel в Discord
+    if (channelInfo.type !== 15) {
+      const types: Record<number, string> = {
+        0: "Текстовый канал",
+        2: "Голосовой канал",
+        4: "Категория",
+        5: "Новостной канал",
+        13: "Stage канал",
+      };
+      const typeName = types[channelInfo.type] || "Неизвестный тип";
+      return sendJsonResponse({ error: `Этот ID принадлежит объекту "${channelInfo.name}" (${typeName}). Для парсинга нужен именно Форум.` }, 400);
     }
 
     const existing = await db.select().from(settings).limit(1);

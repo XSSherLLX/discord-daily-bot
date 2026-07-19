@@ -28,6 +28,9 @@ export default function Home() {
   const [currentBot, setCurrentBot] = useState<string | null>(null);
   const [manualDate, setManualDate] = useState("");
   const [showManualDate, setShowManualDate] = useState(false);
+  const [parsingResult, setParsingResult] = useState<any>(null);
+  const [startParseDate, setStartParseDate] = useState("");
+  const [endParseDate, setEndParseDate] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -142,6 +145,30 @@ export default function Home() {
 
   const isFormValid = discordToken.trim() !== "" && forumChannelId.trim() !== "";
 
+  const parseWeeklyData = async () => {
+    setLoading(true);
+    setMessage("Парсинг тем...");
+    try {
+      const params = new URLSearchParams();
+      if (startParseDate) params.append('startDate', startParseDate);
+      if (endParseDate) params.append('endDate', endParseDate);
+      
+      const url = `/api/forum/parse?${params.toString()}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok) {
+        setParsingResult(data);
+        setMessage(`Парсинг завершен! Найдено тем: ${data.totalThreads}`);
+      } else {
+        setMessage(`Ошибка парсинга: ${data.error}`);
+      }
+    } catch (e) {
+      setMessage("Ошибка при парсинге");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Форматируем дату при отображении
   const formattedDate = (dateStr: string) => formatDbDate(dateStr);
 
@@ -225,6 +252,28 @@ export default function Home() {
                 Текущая дата: <span className="font-medium">{getTodayDate()}</span>
               </p>
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Начальная дата парсинга</label>
+                <input
+                  type="date"
+                  value={startParseDate}
+                  onChange={(e) => setStartParseDate(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Конечная дата парсинга</label>
+                <input
+                  type="date"
+                  value={endParseDate}
+                  onChange={(e) => setEndParseDate(e.target.value)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">Оставьте пустым — соберет за текущую неделю (Пн-Вс)</p>
             
             <div className="flex items-center space-x-4">
                 <button
@@ -243,12 +292,45 @@ export default function Home() {
                 >
                 {loading ? "Создание..." : "Создать пост"}
                 </button>
+
+                <button
+                type="button"
+                onClick={parseWeeklyData}
+                disabled={loading || !currentBot}
+                className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                {loading ? "Парсинг..." : "Собрать отчеты (Пн-Вс)"}
+                </button>
             </div>
           </form>
 
           {message && (
             <div className={`p-4 rounded-md ${message.includes("Ошибка") ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
               {message}
+            </div>
+          )}
+
+          {parsingResult && (
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
+              <h3 className="text-lg font-bold mb-4 text-gray-800">
+                Результаты парсинга (с {parsingResult.rangeStart} по {parsingResult.rangeEnd})
+              </h3>
+              <div className="space-y-4">
+                {parsingResult.data.map((item: any, idx: number) => (
+                  <div key={idx} className="border-b pb-2">
+                    <div className="font-bold text-blue-600">📁 {item.folderName}</div>
+                    <div className="text-xs text-gray-500">Сообщений: {item.messages.length}</div>
+                    <ul className="mt-2 text-sm space-y-1">
+                      {item.messages.slice(0, 3).map((m: any, midx: number) => (
+                        <li key={midx} className="truncate">
+                          <strong>{m.author}:</strong> {m.content || "[Вложение]"}
+                        </li>
+                      ))}
+                      {item.messages.length > 3 && <li className="text-gray-400">... и еще {item.messages.length - 3} сообщений</li>}
+                    </ul>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
