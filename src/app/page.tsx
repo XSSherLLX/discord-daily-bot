@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 // Функция для форматирования даты в дд.мм.гггг
 function formatDbDate(dateStr: string): string {
@@ -145,9 +147,58 @@ export default function Home() {
 
   const isFormValid = discordToken.trim() !== "" && forumChannelId.trim() !== "";
 
+  const downloadAsZip = async () => {
+    if (!parsingResult) return;
+    setLoading(true);
+    setMessage("Подготовка архива...");
+    const zip = new JSZip();
+
+    try {
+      for (const thread of parsingResult.data) {
+        // Создаем папку для каждой темы (Дата - Название)
+        const folder = zip.folder(thread.folderName);
+        if (!folder) continue;
+
+        // Собираем все вложения
+        let fileIndex = 1;
+        for (const message of thread.messages) {
+          for (const attachment of message.attachments) {
+            try {
+              const proxyUrl = `/api/proxy?url=${encodeURIComponent(attachment.url)}`;
+              const response = await fetch(proxyUrl);
+              const blob = await response.blob();
+              
+              // Если файл с таким именем уже есть, добавляем индекс
+              const fileName = attachment.filename || `file_${fileIndex++}`;
+              folder.file(fileName, blob);
+            } catch (err) {
+              console.error(`Failed to download ${attachment.url}`, err);
+            }
+          }
+        }
+
+        // Также добавим текстовый файл с содержанием сообщений
+        const chatLog = thread.messages
+          .map((m: any) => `[${m.author}]: ${m.content || ""}`)
+          .join("\n\n");
+        folder.file("сообщения.txt", chatLog);
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, `Отчеты_Discord_${parsingResult.rangeStart}_${parsingResult.rangeEnd}.zip`);
+      setMessage("Архив успешно скачан!");
+    } catch (err) {
+      setMessage("Ошибка при создании архива");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const parseWeeklyData = async () => {
     setLoading(true);
     setMessage("Парсинг тем...");
+    setParsingResult(null);
     try {
       const params = new URLSearchParams();
       if (startParseDate) params.append('startDate', startParseDate);
@@ -312,9 +363,18 @@ export default function Home() {
 
           {parsingResult && (
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-8">
-              <h3 className="text-lg font-bold mb-4 text-gray-800">
-                Результаты парсинга (с {parsingResult.rangeStart} по {parsingResult.rangeEnd})
-              </h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-gray-800">
+                  Результаты парсинга (с {parsingResult.rangeStart} по {parsingResult.rangeEnd})
+                </h3>
+                <button
+                  onClick={downloadAsZip}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium transition flex items-center gap-2"
+                >
+                  📥 Скачать всё в ZIP
+                </button>
+              </div>
               <div className="space-y-4">
                 {parsingResult.data.map((item: any, idx: number) => (
                   <div key={idx} className="border-b pb-2">

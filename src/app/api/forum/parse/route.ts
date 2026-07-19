@@ -57,13 +57,25 @@ export async function GET(request: Request) {
     for (const thread of weeklyThreads) {
       const messages = await getThreadMessages(config.discordToken, thread.id);
       
+      // Вычисляем дату создания темы
+      const timestampFromId = Math.floor(Number(thread.id) / 4194304) + 1420070400000;
+      const createdAtDate = new Date(thread.thread_metadata?.create_timestamp || timestampFromId);
+      const day = String(createdAtDate.getDate()).padStart(2, '0');
+      const month = String(createdAtDate.getMonth() + 1).padStart(2, '0');
+      const year = createdAtDate.getFullYear();
+      const datePrefix = `${day}.${month}.${year}`;
+
       reportData.push({
-        folderName: thread.name,
-        createdAt: thread.thread_metadata?.create_timestamp,
+        threadName: thread.name,
+        datePrefix: datePrefix,
+        folderName: `${datePrefix} - ${thread.name}`,
         messages: messages.map((m: any) => ({
           author: m.author.username,
           content: m.content,
-          attachments: m.attachments.map((a: any) => a.url)
+          attachments: m.attachments.map((a: any) => ({
+            url: a.url,
+            filename: a.filename
+          }))
         }))
       });
     }
